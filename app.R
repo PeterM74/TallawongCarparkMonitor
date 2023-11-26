@@ -22,7 +22,8 @@ ui <- shinyMobile::f7Page(
   shinyMobile::f7TabLayout(
     
     tags$head(
-      tags$link(rel = "stylesheet", type = "text/css", href = "Parking.css")
+      tags$link(rel = "stylesheet", type = "text/css", href = "Parking.css"),
+      tags$link(rel="shortcut icon", href="favicon.ico")
     ),
     
     navbar = shinyMobile::f7Navbar(
@@ -42,10 +43,6 @@ ui <- shinyMobile::f7Page(
       effect = "reveal",
       title = "Help",
       
-      shiny::tags$div(class = "GitHubIcon",
-                      shiny::a(shinyMobile::f7Icon("logo_github"),
-                               href = "https://github.com/PeterM74/TallawongCarparkMonitor")
-      ),
 
       # Help spiel
       shinyMobile::f7Padding(shiny::p(paste0("This webapp was designed to reflect realtime usage of the Tallawong ",
@@ -54,7 +51,14 @@ ui <- shinyMobile::f7Page(
       shinyMobile::f7Padding(shiny::p("If you encounter an issue, please raise a bug on the Github page."), 
                              side = "horizontal"),
       shinyMobile::f7Padding(shiny::tags$i("Author: Peter Moritz"),
-                             side = "horizontal")
+                             side = "horizontal"),
+      shiny::br(),
+      shinyMobile::f7Padding(shiny::tags$i(paste0("Version: ", Settings$VersionN)),
+                             side = "horizontal"),
+      shiny::tags$div(class = "GitHubIcon",
+                      shiny::a(shinyMobile::f7Icon("logo_github", style = "font-size: 35px"),
+                               href = "https://github.com/PeterM74/TallawongCarparkMonitor")
+      )
       
     ),
     
@@ -76,9 +80,9 @@ ui <- shinyMobile::f7Page(
         # Summary section
         shiny::tagList(
           
-          shiny::tags$u(shinyMobile::f7Padding(shiny::h2("Tallawong parking", 
-                                                         style = paste0("color: ", Settings$ColourTheme), 
-                                                         .noWS = "after"), side = "left")),
+          shinyMobile::f7Padding(shiny::h2("Tallawong parking", 
+                                           style = paste0("color: ", Settings$ColourTheme), 
+                                           .noWS = "after"), side = "left"),
           fSummaryStatsUIModule("TallawongP1SummaryGauge",
                                 Name = "P1",
                                 Settings = Settings),
@@ -94,9 +98,9 @@ ui <- shinyMobile::f7Page(
         # Tallawong park breakdown
         shiny::tagList(
           
-          shiny::tags$u(shinyMobile::f7Padding(shiny::h2("Park breakdown", 
-                                                         style = paste0("color: ", Settings$ColourTheme), 
-                                                         .noWS = "after"), side = "left")),
+          shinyMobile::f7Padding(shiny::h2("Park breakdown", 
+                                           style = paste0("color: ", Settings$ColourTheme), 
+                                           .noWS = "after"), side = "left"),
           shiny::uiOutput("SummaryTable")
           
         )
@@ -116,7 +120,8 @@ ui <- shinyMobile::f7Page(
         # Historical view
         shiny::tagList(
           
-          shiny::p("Data being collected")
+          shinyMobile::f7Padding(shiny::p("Data being collected - coming soon!"),
+                                 side = NULL)
           
         ),
         
@@ -171,7 +176,8 @@ server <- function(input, output, session) {
   TallawongTable <- fCreateSummaryTable(list(P1APICall, P2APICall, P3APICall),
                                         Settings = Settings)
   output$SummaryTable <- shiny::renderUI({
-    shinyMobile::f7Table(TallawongTable)
+    shinyMobile::f7Padding(shinyMobile::f7Table(TallawongTable),
+                           side = "horizontal")
   })
   
 }

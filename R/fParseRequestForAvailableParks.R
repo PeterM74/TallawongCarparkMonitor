@@ -17,7 +17,7 @@ fParseRequestForAvailableParks <- function(Request) {
     FacilityID = Request$facility_id,
     FacilityName = fFormatParkName(Request$facility_name, Type = "Full"),
     FacilityNameShort = fFormatParkName(Request$facility_name, Type = "Short"),
-    Date = Request$MessageDate
+    Date = lubridate::ymd_hms(Request$MessageDate)
     
   )
   

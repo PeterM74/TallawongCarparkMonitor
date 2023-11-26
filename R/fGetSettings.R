@@ -18,6 +18,11 @@ fGetSettings <- function() {
     P3 = 28
     
   )
+  
+  
+  
+  # App details
+  Settings$VersionN <- "0.1.1"
 
   
   # App themes
