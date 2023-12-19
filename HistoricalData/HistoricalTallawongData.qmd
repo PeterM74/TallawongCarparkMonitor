@@ -1,0 +1,486 @@
+---
+title: "Tallawong Historical Data"
+author: "Peter Moritz"
+format:
+  html:
+    embed-resources: true
+    code-fold: show
+---
+
+# Purpose
+In order to provide historical Tallawong parking data and predict future usage, the API was queried for historical data. This data can then be interpolated to provide parking data by minute which can then be used to group similar days together or inform a model to predict future usage.
+
+The Tallawong car park is split into three individual sections: 
+
+* P1: small car park with disability spots closest to the station
+* P2: large car park with motorbike spots further than P1
+* P3: large car park the farthest away
+
+# Query and load historical data
+
+## Load libraries and functions
+
+```{r Libraries}
+library(tidyverse)
+library(httr2)
+library(zoo)
+library(boot)
+```
+
+```{r Functions}
+#| code-fold: true
+
+# Load app functions
+purrr::map(list.files(path = "../R/", pattern = ".R$", full.names = TRUE),
+           source) %>%
+  invisible()
+
+# Load custom functions for this Quarto doc
+## Custom history API call to include date filter
+fCallAPIHistory <- function(RootURL, Endpoint, APIKey, FacilityID, Date) {
+  
+  Data <- httr2::request(RootURL) %>%
+    httr2::req_url_path_append(Endpoint) %>%
+    httr2::req_headers(Authorization = paste("apikey", APIKey)) %>%
+    httr2::req_url_query(facility = FacilityID, eventdate = Date) %>%
+    httr2::req_perform() %>%
+    httr2::resp_body_json()
+  
+  return(Data)
+  
+}
+
+## Function to slowly call the API to prevent hitting any API limits - current parking
+fSlowAPICall <- purrr::slowly(function(XDate, Facility, Settings) {
+  
+  fCallAPIHistory(Settings$APIRootURL,
+                  Endpoint = Settings$APIEndpoints$History, 
+                  APIKey = Settings$APIKey, 
+                  FacilityID = Facility,
+                  Date = XDate) %>%
+    purrr::map(fExtractAPIData) %>%
+    purrr::map(fParseRequestForAvailableParks) %>%
+    purrr::map(tibble::as_tibble) %>%
+    purrr::list_rbind()
+  
+}, rate = purrr::rate_delay(pause = 0.5))
+
+## Function to slowly call the API to prevent hitting any API limits - old parking facility
+fSlowAPICallOldTallawong <- purrr::slowly(function(XDate, Settings) {
+  
+  fCallAPIHistory(Settings$APIRootURL,
+                  Endpoint = Settings$APIEndpoints$History, 
+                  APIKey = Settings$APIKey, 
+                  FacilityID = "1",
+                  Date = XDate) %>%
+    purrr::map(.f = function(Request) {
+      
+      Request[c("occupancy", "facility_id", "facility_name", "MessageDate", "spots", "zones")]
+      
+    }) %>%
+    purrr::map(.f = function(Request) {
+      
+      purrr::map(Request$zones, function(Req) {
+        
+        Spots <- as.integer(Req$spots)
+        Taken <- as.integer(Req$occupancy$total)
+        Available <- fWinsorise(Spots - Taken, min = 0, max = Spots) %>%
+          as.integer()
+        
+        tibble::tibble(Available = Available,
+                       Taken = Taken,
+                       Total = Spots,
+                       PercFull = fWinsorise(Taken/Spots, min = 0, max = 1),
+                       PercAvail = fWinsorise(Available/Spots, min = 0, max = 1),
+                       FacilityName = fFormatParkName(Req$zone_name, Type = "Full"),
+                       FacilityNameShort = fFormatParkName(Req$zone_name, Type = "Short"))
+        
+      }) %>%
+        purrr::list_rbind() %>%
+        mutate(Date = lubridate::ymd_hms(Request$MessageDate))
+      
+    }) %>%
+    purrr::list_rbind()
+  
+}, rate = purrr::rate_delay(pause = 0.5))
+
+## Bootstrap median (rcompanion::groupwiseMedian does not support weighting)
+fBootstrapMedian <- function(x, wt, seed = 12345) {
+  
+  LengthVector <- length(x)
+  
+  set.seed(seed)
+  BootResults <- boot(data = x, 
+                      statistic = function(x,i) median(x[i]), 
+                      R = 50 + ceiling(sqrt(LengthVector) / 2),
+                      weights = wt,
+                      parallel = "no")
+  
+  tryCatch({
+    
+    CIResults <- fBootCINoOutput(BootResults, type = "perc")
+    Lower <<- CIResults$percent[4]
+    Upper <<- CIResults$percent[5]
+    
+  }, error = function(e) {
+    
+    Lower <<- NA_real_
+    Upper <<- NA_real_
+    
+  })
+  
+  ReturnList <- list(list(
+    BootMedian = BootResults$t0,
+    LowerCI = Lower,
+    UpperCI = Upper
+  ))
+  
+  return(ReturnList)
+  
+}
+
+## The below is a copy of the boot::boot.ci function with the annoying print removed
+### The print seemed resistant to suppressMessages() / invisible()
+fBootCINoOutput <- function (boot.out, conf = 0.95, type = "all", 
+                             index = 1L:min(2L, length(boot.out$t0)), 
+                             var.t0 = NULL, var.t = NULL, t0 = NULL, 
+                             t = NULL, L = NULL, 
+                             h = function(t) t, hdot = function(t) rep(1, length(t)), 
+                             hinv = function(t) t, ...) {
+  call <- match.call()
+  if ((is.null(t) && !is.null(t0)) || (!is.null(t) && is.null(t0))) 
+    stop("'t' and 't0' must be supplied together")
+  t.o <- t
+  t0.o <- t0
+  vt0.o <- var.t0
+  if (is.null(t)) {
+    if (length(index) == 1L) {
+      t0 <- boot.out$t0[index]
+      t <- boot.out$t[, index]
+    }
+    else if (ncol(boot.out$t) < max(index)) {
+      warning("index out of bounds; minimum index only used.")
+      index <- min(index)
+      t0 <- boot.out$t0[index]
+      t <- boot.out$t[, index]
+    }
+    else {
+      t0 <- boot.out$t0[index[1L]]
+      t <- boot.out$t[, index[1L]]
+      if (is.null(var.t0)) 
+        var.t0 <- boot.out$t0[index[2L]]
+      if (is.null(var.t)) 
+        var.t <- boot.out$t[, index[2L]]
+    }
+  }
+  if (boot:::const(t, min(1e-08, mean(t, na.rm = TRUE)/1e+06))) {
+    warning(paste("All values of t are equal to ", mean(t, 
+      na.rm = TRUE), "\n Cannot calculate confidence intervals"))
+    return(NULL)
+  }
+  if (length(t) != boot.out$R) 
+    stop(gettextf("'t' must of length %d", boot.out$R), 
+      domain = NA)
+  if (is.null(var.t)) 
+    fins <- seq_along(t)[is.finite(t)]
+  else {
+    fins <- seq_along(t)[is.finite(t) & is.finite(var.t)]
+    var.t <- var.t[fins]
+  }
+  t <- t[fins]
+  R <- length(t)
+  if (!is.null(var.t0)) 
+    var.t0 <- var.t0 * hdot(t0)^2
+  if (!is.null(var.t)) 
+    var.t <- var.t * hdot(t)^2
+  t0 <- h(t0)
+  t <- h(t)
+  if (missing(L)) 
+    L <- boot.out$L
+  output <- list(R = R, t0 = hinv(t0), call = call)
+  if (any(type == "all" | type == "norm")) 
+    output <- c(output, list(normal = boot:::norm.ci(boot.out, 
+      conf, index[1L], var.t0 = vt0.o, t0 = t0.o, t = t.o, 
+      L = L, h = h, hdot = hdot, hinv = hinv)))
+  if (any(type == "all" | type == "basic")) 
+    output <- c(output, list(basic = boot:::basic.ci(t0, t, conf, 
+      hinv = hinv)))
+  if (any(type == "all" | type == "stud")) {
+    if (length(index) == 1L) 
+      warning("bootstrap variances needed for studentized intervals")
+    else output <- c(output, list(student = boot:::stud.ci(c(t0, 
+      var.t0), cbind(t, var.t), conf, hinv = hinv)))
+  }
+  if (any(type == "all" | type == "perc")) 
+    output <- c(output, list(percent = boot:::perc.ci(t, conf, 
+      hinv = hinv)))
+  if (any(type == "all" | type == "bca")) {
+    if (find_type(boot.out) == "tsboot") 
+      warning("BCa intervals not defined for time series bootstraps")
+    else output <- c(output, list(bca = boot:::bca.ci(boot.out, 
+      conf, index[1L], L = L, t = t.o, t0 = t0.o, h = h, 
+      hdot = hdot, hinv = hinv, ...)))
+  }
+  class(output) <- "bootci"
+  output
+}
+```
+
+```{r LoadSettings}
+Settings <- fGetSettings()
+
+## Historical settings
+Settings$StartDate <- lubridate::dmy("04092023")  # Individual 3 carparks only available from 04 Sept 2023
+Settings$EndDate <- lubridate::dmy("06122023")
+Settings$HistoricalStartDate <- lubridate::dmy("20112022")  # Individual 3 carparks only available from 04 Sept 2023
+Settings$HistoricalEndDate <- lubridate::dmy("04092023")
+```
+
+## Call historical data
+When the parking boom gates were added to Tallawong station car park, the facility ID was changed from one parking station with three zones (historical), to three individual parking facilities (current). The below code loads the data for the current parking facilities (`r Settings$StartDate` to `r Settings$EndDate`) and loads the old historical data (`r Settings$HistoricalStartDate` to `r Settings$HistoricalEndDate`) and combines into a single dataset. The code is currently not evaluated but rather stored in an intermediary dataset as it takes a long time (>1hr) to request all data via the API.
+
+```{r CurrentParkingFacilities}
+#| eval: false
+
+# P1
+HistoricalDataP1 <- purrr::map(seq.Date(Settings$StartDate, Settings$EndDate, by = "days") %>% as.character(),
+                               fSlowAPICall,
+                               Settings = Settings, Facility = Settings$FacilityIDs$P1) %>%
+  purrr::list_rbind()
+
+# P2
+HistoricalDataP2 <- purrr::map(seq.Date(Settings$StartDate, Settings$EndDate, by = "days") %>% as.character(),
+                               fSlowAPICall,
+                               Settings = Settings, Facility = Settings$FacilityIDs$P2) %>%
+  purrr::list_rbind()
+
+# P3
+HistoricalDataP3 <- purrr::map(seq.Date(Settings$StartDate, Settings$EndDate, by = "days") %>% as.character(),
+                               fSlowAPICall,
+                               Settings = Settings, Facility = Settings$FacilityIDs$P3) %>%
+  purrr::list_rbind()
+```
+
+```{r OldParkingFacilities}
+#| eval: false
+#| 
+HistoricalDataOldTallawong <- purrr::map(seq.Date(Settings$HistoricalStartDate, Settings$HistoricalEndDate, by = "days") %>% as.character(),
+                                         fSlowAPICallOldTallawong,
+                                         Settings = Settings) %>%
+  purrr::list_rbind()
+```
+
+```{r SaveDataToFile}
+#| eval: false
+
+FinalHistoricalData <- dplyr::bind_rows(
+  
+  HistoricalDataOldTallawong %>%
+    mutate(Source = "OldData"),
+  
+  HistoricalDataP1 %>%
+    mutate(Source = "NewData"),
+  
+  HistoricalDataP2 %>%
+    mutate(Source = "NewData"),
+  
+  HistoricalDataP3 %>%
+    mutate(Source = "NewData")
+  
+)
+
+saveRDS(FinalHistoricalData, file = "TallawongData 2023-12-07.rds")
+```
+
+## Load historical date information
+Sourced from the official NSW government website.^[1](https://www.nsw.gov.au/about-nsw/school-holidays),[2](https://www.industrialrelations.nsw.gov.au/public-holidays/public-holidays-in-nsw/)^. December school holidays are separated out as I believe they might have significant overlap with higher incidence of leave for the general public.
+
+```{r HistoricalDateInfo}
+# Load historical date information
+HistoricalReferenceDateDataPH <- tibble::tribble(
+  ~Date, ~DateTypePH,
+  "2022-12-25", "Public holiday",
+  "2022-12-26", "Public holiday",
+  "2022-12-27", "Public holiday",
+  "2023-01-01", "Public holiday",
+  "2023-01-02", "Public holiday",
+  "2023-01-26", "Public holiday",
+  "2023-04-07", "Public holiday",
+  "2023-04-08", "Public holiday",
+  "2023-04-09", "Public holiday",
+  "2023-04-10", "Public holiday",
+  "2023-04-25", "Public holiday",
+  "2023-06-12", "Public holiday",
+  "2023-10-02", "Public holiday",
+  "2023-12-25", "Public holiday",
+  "2023-12-26", "Public holiday"
+  ) %>%
+  mutate(Date = lubridate::ymd(Date))
+
+HistoricalReferenceDateDataSH <- tibble::tibble(
+  Date = c(
+    ## 2022 summer holidays
+    seq.Date(from = lubridate::ymd("2022-12-21"),
+                  to = lubridate::ymd("2023-01-26"),
+                  by = "days"),
+    ## Autumn holidays
+    seq.Date(from = lubridate::ymd("2023-04-10"),
+                  to = lubridate::ymd("2023-04-21"),
+                  by = "days"),
+    ## Winter holidays
+    seq.Date(from = lubridate::ymd("2023-07-03"),
+                  to = lubridate::ymd("2023-07-14"),
+                  by = "days"),
+    ## Spring holidays
+    seq.Date(from = lubridate::ymd("2023-09-25"),
+                  to = lubridate::ymd("2023-10-06"),
+                  by = "days"),
+    ## Summer holidays (eastern)
+    seq.Date(from = lubridate::ymd("2023-12-20"),
+                  to = lubridate::ymd("2024-01-31"),
+                  by = "days")
+    ),
+  DateTypeSH = "School holiday"
+)
+
+HistoricalReferenceDateData <- tibble::tibble(
+  Date = seq.Date(from = Settings$HistoricalStartDate,
+                  to = Settings$EndDate,
+                  by = "days")) %>%
+  # Join Public and School Holiday data
+  dplyr::full_join(y = HistoricalReferenceDateDataPH,
+                   by = "Date",
+                   relationship = "one-to-one") %>%
+  dplyr::full_join(y = HistoricalReferenceDateDataSH,
+                   by = "Date",
+                   relationship = "one-to-one") %>%
+  mutate(FinalDayClassification = dplyr::case_when(
+    !is.na(DateTypePH) ~ DateTypePH,
+    !is.na(DateTypeSH) & lubridate::month(Date) == 12 ~ "December school holiday",
+    !is.na(DateTypeSH) ~ DateTypeSH,
+    TRUE ~ "Regular day"
+  )) %>%
+  select(-DateTypePH, -DateTypeSH)
+```
+
+
+# Transform data
+
+```{r LoadStoredData}
+FinalHistoricalData <- readRDS(file = "TallawongData 2023-12-07.rds")
+```
+
+Total data points: `r scales::comma(nrow(FinalHistoricalData), accuracy = 1)`.
+
+It should be noted that the P1 car park originally was considered to have 152 spots (31 disabled car parks) but this has been reduced to 121 in the new car park reporting scheme. As such, we can't get a perfect analysis over time and it is not clear how P1 handles cars that take up a P1 space (the boom gate counter would not know where they intend to park). Reviewing the data, it would appear that P1 regularly hit the 152 maximum despite in-person visits showing that the disabled car parks were mostly empty. It is assumed then that the old method used was to assume the disabled car park always had the 31 disabled car spots filled for the purposes of reporting and reviewing the historical data, the number of spots available never exceeded 112 which would support this hypothesis.
+
+To ensure the historical data is comparable to current reporting standards, 31 spots will be taken from the historical data for P1.
+
+```{r RectifyP1HistoricalData}
+FinalHistoricalDataP1Fixed <- FinalHistoricalData %>%
+  mutate(Taken = dplyr::if_else(Source == "OldData" & FacilityNameShort == "P1", Taken - 31L, Taken),
+         Total = dplyr::if_else(Source == "OldData" & FacilityNameShort == "P1", Total - 31L, Total),
+         PercFull = fWinsorise(Taken/Total, min = 0, max = 1),
+         PercAvail = fWinsorise(Available/Total, min = 0, max = 1))
+```
+
+Generate by-minute data and interpolate missing data (assuming linear interpolation between time points). The frequency of the historical API data means the inaccuracies introduced due to interpolation are likely to be very minor.
+
+```{r}
+Time24Hr <- paste0(rep(stringr::str_pad(0:23, 
+                                        width = 2,
+                                        pad = "0"),
+                       each = 60),
+                   ":",
+                   rep(stringr::str_pad(0:59,
+                                        width = 2,
+                                        pad = "0"),
+                       times = 24))
+
+
+# Create dataset with a single value per minute (don't need by second granularity)
+FinalHistoricalDataWithClassification <- FinalHistoricalDataP1Fixed %>%
+  dplyr::mutate(MinuteDate = lubridate::floor_date(Date, unit = "minute")) %>%
+  dplyr::arrange(Date, FacilityNameShort) %>%
+  dplyr::group_by(FacilityNameShort, MinuteDate) %>%
+  dplyr::slice(1L) %>%
+  dplyr::ungroup()
+
+
+# Create object of all minutes between start and end date
+AllMinutesAvailable <- tibble::tibble(
+  MinuteDate = seq(lubridate::ymd_hms(paste(Settings$HistoricalStartDate, "00:00:00")), 
+                   lubridate::ymd_hms(paste(Settings$EndDate, "23:59:00")), 
+                   by = "1 min")) %>%
+  dplyr::cross_join(y = dplyr::distinct(FinalHistoricalDataWithClassification, FacilityName, FacilityNameShort, Total)) %>%
+  dplyr::arrange(FacilityNameShort, MinuteDate)
+
+
+# Join together to fill in the missing minute data
+FinalHistoricalDataWithAllMinutes <- FinalHistoricalDataWithClassification %>%
+  dplyr::bind_rows(
+    
+    dplyr::anti_join(x = AllMinutesAvailable, 
+                     y = FinalHistoricalDataWithClassification,
+                     by = c("MinuteDate", "FacilityName"))
+    
+  ) %>%
+  dplyr::mutate(Day = lubridate::wday(MinuteDate, label = TRUE, abbr = FALSE),
+                Time = format(MinuteDate, "%H:%M"),
+                DateOnly = lubridate::as_date(MinuteDate)) %>%
+  dplyr::arrange(FacilityNameShort, MinuteDate) %>%
+  dplyr::left_join(y = HistoricalReferenceDateData,
+                   by = c("DateOnly" = "Date"),
+                   relationship = "many-to-one")
+
+
+# Interpolate
+FinalHistoricalDataInterpolated <- FinalHistoricalDataWithAllMinutes %>%
+  dplyr::group_by(FacilityNameShort) %>%
+  dplyr::mutate(Available = floor(zoo::na.approx(Available, na.rm = FALSE)),
+                Taken = ceiling(zoo::na.approx(Taken, na.rm = FALSE)),
+                PercFull = fWinsorise(Taken/Total, min = 0, max = 1),
+                PercAvail = fWinsorise(Available/Total, min = 0, max = 1)) %>%
+  dplyr::filter(!is.na(Available)) %>%  # Remove a couple of rows where interpolation can't be done (i.e. late on the last date of data collection)
+  dplyr::select(Available, Taken, Total, PercFull, PercAvail, FacilityName, FacilityNameShort, MinuteDate, Day, Time, FinalDayClassification) %>%
+  dplyr::ungroup()
+```
+
+Add weights. As the area around Tallawong station is undergoing massive development, old data may not be as reliable as more recent data. Without spending a lot of time trying to quantify the change in development and impacts over time (as this project is meant to be done quickly for my personal benefit and not to be as accurate as possible), I have only applied a minor penalisation to historic data (earliest data is worth 80% of the most up to date data) as it is still informative.
+
+```{r}
+StartDateInteger <- paste(Settings$HistoricalStartDate, "00:00:00") %>%
+  as.character() %>%
+  lubridate::ymd_hms() %>%
+  as.integer()
+
+EndDateInteger <- paste(Settings$EndDate, "23:59:59") %>%
+  as.character() %>%
+  lubridate::ymd_hms() %>%
+  as.integer()
+
+FinalHistoricalDataWeighted <- FinalHistoricalDataInterpolated %>%
+  dplyr::mutate(DateAsInteger = as.integer(MinuteDate),
+                Weight = ((DateAsInteger - StartDateInteger) / 
+                            (EndDateInteger - StartDateInteger) * 0.2) + 0.8) %>%
+  dplyr::select(-DateAsInteger)
+```
+
+Create final summary dataframe for plotting. As much of the time points have very little numbers, the bootstrap percentile interval has been used in place of the 95% confidence interval. Ideally when more data is collected, the adjusted bootstrap percentile interval will be used instead. And then when models are built, the prediction interval.
+
+```{r}
+ParkAvailabilityByDayTime <- FinalHistoricalDataWeighted %>%
+  dplyr::group_by(FinalDayClassification, FacilityName, FacilityNameShort, Day, Time) %>%
+  dplyr::summarise(N = dplyr::n(),
+                   MedianBootResultsAvailable = fBootstrapMedian(Available, wt = Weight),
+                   Min = min(Available, na.rm = TRUE),
+                   Max = max(Available, na.rm = TRUE),
+                   .groups = "drop") %>%
+  suppressWarnings() %>%
+  tidyr::unnest_wider(col = MedianBootResultsAvailable) %>%
+  dplyr::arrange(FinalDayClassification, FacilityNameShort, Day, Time)
+```
+
+```{r}
+saveRDS(ParkAvailabilityByDayTime, file = "FinalHistoryPlotData.Rds")
+```

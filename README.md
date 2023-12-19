@@ -19,3 +19,5 @@ There are many data points and API calls available, read [the documentation](htt
 ## Contributing and getting help
 The app is currently under development. When it reaches V1.0, if you encounter a bug or crash, please file an [issue](https://github.com/PeterM74/TallawongCarparkMonitor/issues) with sufficient detail to replicate the bug. You may also submit requests to improve the experience through the `enhancements` tag.
 
+### Updating historical dataset
+The historical tab on the app uses data from `2022-11-20` until `2023-12-06`. The app will need to be regularly updated with the latest data. Refer to the [Quarto doc](HistoricalData/HistoricalTallawongData.qmd) for information and code to load the latest data.

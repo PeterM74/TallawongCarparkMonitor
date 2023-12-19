@@ -23,7 +23,8 @@ ui <- shinyMobile::f7Page(
     
     tags$head(
       tags$link(rel = "stylesheet", type = "text/css", href = "Parking.css"),
-      tags$link(rel="shortcut icon", href="favicon.ico")
+      tags$link(rel="shortcut icon", href="favicon.ico"),
+      tags$link(rel="apple-touch-icon", href="apple-touch-icon.png")
     ),
     
     navbar = shinyMobile::f7Navbar(
