@@ -1,5 +1,5 @@
 # TallawongCarparkMonitor
-![](https://img.shields.io/badge/version-1.0.0-yellow)
+![](https://img.shields.io/badge/version-1.0.0-green)
 
 Shiny app that monitors the available car spaces at [Tallawong Metro](https://transportnsw.info/routes/details/sydney-metro/m/0300M) car park. It uses the Transport for NSW's [Open Data hub](https://opendata.transport.nsw.gov.au/), specifically the [car park API](https://opendata.transport.nsw.gov.au/dataset/car-park-api).
 
