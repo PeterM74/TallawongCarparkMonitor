@@ -21,9 +21,15 @@ fGetSettings <- function() {
   
   
   
+  # Data
+  Settings$HistoricalData <- readRDS("HistoricalData/FinalHistoryPlotData.Rds")
+  
+  
+  
   # App details
   Settings$VersionN <- "0.1.1"
 
+  
   
   # App themes
   Settings$ColourTheme <- "#168388"

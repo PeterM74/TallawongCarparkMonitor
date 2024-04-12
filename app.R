@@ -3,6 +3,7 @@ library(tidyverse)
 library(shinyMobile)
 library(httr2)
 library(c3)
+library(plotly)
 
 readRenviron(".Renviron")
 
@@ -121,12 +122,59 @@ ui <- shinyMobile::f7Page(
         # Historical view
         shiny::tagList(
           
-          shinyMobile::f7Padding(shiny::p("Data being collected - coming soon!"),
-                                 side = NULL)
+          ## P1
+          shinyMobile::f7Padding(shinyMobile::f7Card(
+            
+            shiny::selectInput("HistoricalDateType", label = "Date type:",
+                               choices = unique(Settings$HistoricalData$FinalDayClassification),
+                               selected = "Regular day"),
+            
+            shiny::h2("P1", 
+                      style = paste0("color: ", Settings$ColourTheme), 
+                      .noWS = "after"),
+            
+            plotly::plotlyOutput("HistoricalRasterPlotP1",
+                                 width = "100%",
+                                 height = "60vh"),
+            
+            shiny::img(src = "PlotLegend.png", style = "display: block; margin-left: auto; margin-right: auto; width: 80vw; max-width: 10cm;")
+            
+          ), side = NULL),
+          
+          ## P2
+          shinyMobile::f7Padding(shinyMobile::f7Card(
+
+            shiny::h2("P2", 
+                      style = paste0("color: ", Settings$ColourTheme), 
+                      .noWS = "after"),
+            
+            plotly::plotlyOutput("HistoricalRasterPlotP2",
+                                 width = "100%",
+                                 height = "60vh"),
+            
+            shiny::img(src = "PlotLegend.png", style = "display: block; margin-left: auto; margin-right: auto; width: 80vw; max-width: 10cm;")
+            
+          ), side = NULL),
+          
+          ## P3
+          shinyMobile::f7Padding(shinyMobile::f7Card(
+
+            shiny::h2("P3", 
+                      style = paste0("color: ", Settings$ColourTheme), 
+                      .noWS = "after"), 
+            
+            plotly::plotlyOutput("HistoricalRasterPlotP3",
+                                 width = "100%",
+                                 height = "60vh"),
+            
+            shiny::img(src = "PlotLegend.png", style = "display: block; margin-left: auto; margin-right: auto; width: 80vw; max-width: 10cm;")
+            
+          ), side = NULL)
           
         ),
         
-      )
+      ),
+      swipeable = TRUE, animated = FALSE
       
     )
     
@@ -180,6 +228,59 @@ server <- function(input, output, session) {
     shinyMobile::f7Padding(shinyMobile::f7Table(TallawongTable),
                            side = "horizontal")
   })
+  
+  
+  
+  # Historical page elements -----
+  ## Summary data
+  MasterHistoricalData <- Settings$HistoricalData %>%
+    dplyr::left_join(TallawongTable %>%
+                       dplyr::select(Park, Total),
+                     by = c("FacilityNameShort" = "Park"),
+                     relationship = "many-to-one") %>%
+    dplyr::mutate(AvailablePercentage = fWinsorise(BootMedian / Total, min = 0, max = 1),
+                  CI95Percentage = paste0("(",
+                                          scales::percent(fWinsorise(LowerCI / Total, min = 0, max = 1),
+                                                          accuracy = 0.1),
+                                          "-",
+                                          scales::percent(fWinsorise(UpperCI / Total, min = 0, max = 1),
+                                                          accuracy = 0.1),
+                                          ")"),
+                  Percent = paste(scales::percent(AvailablePercentage, accuracy = 0.1), CI95Percentage),
+                  Day = factor(stringr::str_sub(Day, end = 3), levels = stringr::str_sub(levels(Day), end = 3),
+                               ordered = TRUE))
+  ## Summary raster charts
+  output$HistoricalRasterPlotP1 <- plotly::renderPlotly({
+    
+    MasterHistoricalData %>%
+      dplyr::filter(FinalDayClassification == input$HistoricalDateType &
+                      FacilityNameShort == "P1") %>%
+      fBuildSummaryHistoricalRasterPlot(DateType = input$HistoricalDateType,
+                                        ParkType = "P1",
+                                        Settings = Settings)
+    
+  })
+  output$HistoricalRasterPlotP2 <- plotly::renderPlotly({
+    
+    MasterHistoricalData %>%
+      dplyr::filter(FinalDayClassification == input$HistoricalDateType &
+                      FacilityNameShort == "P2") %>%
+      fBuildSummaryHistoricalRasterPlot(DateType = input$HistoricalDateType,
+                                        ParkType = "P2",
+                                        Settings = Settings)
+    
+  })
+  output$HistoricalRasterPlotP3 <- plotly::renderPlotly({
+    
+    MasterHistoricalData %>%
+      dplyr::filter(FinalDayClassification == input$HistoricalDateType &
+                      FacilityNameShort == "P3") %>%
+      fBuildSummaryHistoricalRasterPlot(DateType = input$HistoricalDateType,
+                                        ParkType = "P3",
+                                        Settings = Settings)
+    
+  })
+  
   
 }
 
