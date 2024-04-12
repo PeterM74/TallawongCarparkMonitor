@@ -1,0 +1,29 @@
+/* App background */
+.light .split-layout .page-content:not(.login-screen-content, .panel-content),
+.light .single-layout .page-content:not(.login-screen-content, .panel-content),
+.light .tab-layout .page-content:not(.login-screen-content, .panel-content),
+.light div.messages {
+  background-color: white;
+}
+
+/* C3 gauge arc background */
+.c3-chart-arcs-background {
+  fill:#e0e0e0;
+  stroke:none
+} 
+
+/* shinyMobile table */
+tr {
+  font-weight: normal;
+}
+
+tr:last-child {
+  font-weight: bold;
+}
+
+/* GH icon in user panel */
+.GitHubIcon{
+  position: relative;
+  top: -40px;
+  left: 82%;
+}
