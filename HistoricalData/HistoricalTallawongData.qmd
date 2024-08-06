@@ -289,7 +289,7 @@ FinalHistoricalData <- dplyr::bind_rows(
   
 )
 
-saveRDS(FinalHistoricalData, file = "TallawongData 2023-12-07.rds")
+saveRDS(FinalHistoricalData, file = "TallawongData 2024-08-06.rds")
 ```
 
 ## Load historical date information
@@ -313,7 +313,18 @@ HistoricalReferenceDateDataPH <- tibble::tribble(
   "2023-06-12", "Public holiday",
   "2023-10-02", "Public holiday",
   "2023-12-25", "Public holiday",
-  "2023-12-26", "Public holiday"
+  "2023-12-26", "Public holiday",
+  "2024-01-01", "Public holiday",
+  "2024-01-26", "Public holiday",
+  "2024-03-29", "Public holiday",
+  "2024-03-30", "Public holiday",
+  "2024-03-31", "Public holiday",
+  "2024-04-01", "Public holiday",
+  "2024-04-25", "Public holiday",
+  "2024-06-10", "Public holiday",
+  "2024-10-07", "Public holiday",
+  "2024-12-25", "Public holiday",
+  "2024-12-26", "Public holiday"
   ) %>%
   mutate(Date = lubridate::ymd(Date))
 
@@ -338,6 +349,22 @@ HistoricalReferenceDateDataSH <- tibble::tibble(
     ## Summer holidays (eastern)
     seq.Date(from = lubridate::ymd("2023-12-20"),
                   to = lubridate::ymd("2024-01-31"),
+                  by = "days"),
+    ## Autumn holidays
+    seq.Date(from = lubridate::ymd("2024-04-15"),
+                  to = lubridate::ymd("2024-04-26"),
+                  by = "days"),
+    ## Winter holidays
+    seq.Date(from = lubridate::ymd("2024-07-08"),
+                  to = lubridate::ymd("2024-07-19"),
+                  by = "days"),
+    ## Spring holidays
+    seq.Date(from = lubridate::ymd("2024-09-30"),
+                  to = lubridate::ymd("2024-10-11"),
+                  by = "days"),
+    ## Summer holidays (eastern)
+    seq.Date(from = lubridate::ymd("2024-12-23"),
+                  to = lubridate::ymd("2025-01-30"),
                   by = "days")
     ),
   DateTypeSH = "School holiday"
@@ -367,7 +394,7 @@ HistoricalReferenceDateData <- tibble::tibble(
 # Transform data
 
 ```{r LoadStoredData}
-FinalHistoricalData <- readRDS(file = "TallawongData 2023-12-07.rds")
+FinalHistoricalData <- readRDS(file = "TallawongData 2024-08-06.rds")
 ```
 
 Total data points: `r scales::comma(nrow(FinalHistoricalData), accuracy = 1)`.
@@ -462,7 +489,7 @@ EndDateInteger <- paste(Settings$EndDate, "23:59:59") %>%
 FinalHistoricalDataWeighted <- FinalHistoricalDataInterpolated %>%
   dplyr::mutate(DateAsInteger = as.integer(MinuteDate),
                 Weight = ((DateAsInteger - StartDateInteger) / 
-                            (EndDateInteger - StartDateInteger) * 0.2) + 0.8) %>%
+                            (EndDateInteger - StartDateInteger) * 0.4) + 0.6) %>%
   dplyr::select(-DateAsInteger)
 ```
 

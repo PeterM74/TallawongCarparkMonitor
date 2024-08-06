@@ -1,5 +1,5 @@
 # TallawongCarparkMonitor
-![](https://img.shields.io/badge/version-1.0.0-green)
+![](https://img.shields.io/badge/version-1.0.1-green)
 
 Shiny app that monitors the available car spaces at [Tallawong Metro](https://transportnsw.info/routes/details/sydney-metro/m/0300M) car park. It uses the Transport for NSW's [Open Data hub](https://opendata.transport.nsw.gov.au/), specifically the [car park API](https://opendata.transport.nsw.gov.au/dataset/car-park-api).
 
@@ -20,4 +20,6 @@ There are many data points and API calls available, read [the documentation](htt
 If you encounter a bug or crash, please file an [issue](https://github.com/PeterM74/TallawongCarparkMonitor/issues) with sufficient detail to replicate the bug. You may also submit requests to improve the experience through the `enhancements` tag.
 
 ### Updating historical dataset
-The historical tab on the app uses data from `2022-11-20` until `2023-12-06`. The app will need to be regularly updated with the latest data. Refer to the [Quarto doc](HistoricalData/HistoricalTallawongData.qmd) for information and code to load the latest data.
+The historical tab on the app uses data from `2022-11-20` until `2024-08-06`. The app will need to be regularly updated with the latest data. Refer to the [Quarto doc](HistoricalData/HistoricalTallawongData.qmd) for information and code to load the latest data.
+
+Due to the Metro West extension, several months of data will be required to gather a reasonable estimate of the new parking usage. Until then, the estimates in the historical tab are likely to be inaccurate.
