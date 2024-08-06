@@ -122,6 +122,10 @@ ui <- shinyMobile::f7Page(
         # Historical view
         shiny::tagList(
           
+          shinyMobile::f7Padding(shiny::p(shiny::HTML("<b>Due to the Metro extension, ",
+                                                      "historical estimates may not ",
+                                                      "be accurate for several months.</b>")), 
+                                 side = "horizontal"),
           ## P1
           shinyMobile::f7Padding(shinyMobile::f7Card(
             

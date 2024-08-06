@@ -20,4 +20,6 @@ There are many data points and API calls available, read [the documentation](htt
 If you encounter a bug or crash, please file an [issue](https://github.com/PeterM74/TallawongCarparkMonitor/issues) with sufficient detail to replicate the bug. You may also submit requests to improve the experience through the `enhancements` tag.
 
 ### Updating historical dataset
-The historical tab on the app uses data from `2022-11-20` until `2023-12-06`. The app will need to be regularly updated with the latest data. Refer to the [Quarto doc](HistoricalData/HistoricalTallawongData.qmd) for information and code to load the latest data.
+The historical tab on the app uses data from `2022-11-20` until `2024-08-06`. The app will need to be regularly updated with the latest data. Refer to the [Quarto doc](HistoricalData/HistoricalTallawongData.qmd) for information and code to load the latest data.
+
+Due to the Metro West extension, several months of data will be required to gather a reasonable estimate of the new parking usage. Until then, the estimates in the historical tab are likely to be inaccurate.
