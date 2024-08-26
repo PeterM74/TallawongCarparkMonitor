@@ -1,3 +1,4 @@
+library(shinycssloaders)
 library(shiny)
 library(tidyverse)
 library(shinyMobile)
@@ -103,7 +104,9 @@ ui <- shinyMobile::f7Page(
           shinyMobile::f7Padding(shiny::h2("Park breakdown", 
                                            style = paste0("color: ", Settings$ColourTheme), 
                                            .noWS = "after"), side = "left"),
-          shiny::uiOutput("SummaryTable")
+          shinycssloaders::withSpinner(shiny::uiOutput("SummaryTable"), 
+                                       type = 6, color = Settings$ColourTheme,
+                                       proxy.height = "200px")
           
         )
         
