@@ -231,7 +231,7 @@ Settings <- fGetSettings()
 
 ## Historical settings
 Settings$StartDate <- lubridate::dmy("04092023")  # Individual 3 carparks only available from 04 Sept 2023
-Settings$EndDate <- lubridate::dmy("06122023")
+Settings$EndDate <- lubridate::dmy("16012026")
 Settings$HistoricalStartDate <- lubridate::dmy("20112022")  # Individual 3 carparks only available from 04 Sept 2023
 Settings$HistoricalEndDate <- lubridate::dmy("04092023")
 ```
@@ -289,7 +289,7 @@ FinalHistoricalData <- dplyr::bind_rows(
   
 )
 
-saveRDS(FinalHistoricalData, file = "TallawongData 2024-08-06.rds")
+saveRDS(FinalHistoricalData, file = "TallawongData 2026-01-18.rds")
 ```
 
 ## Load historical date information
@@ -324,7 +324,27 @@ HistoricalReferenceDateDataPH <- tibble::tribble(
   "2024-06-10", "Public holiday",
   "2024-10-07", "Public holiday",
   "2024-12-25", "Public holiday",
-  "2024-12-26", "Public holiday"
+  "2024-12-26", "Public holiday",
+  "2025-01-01", "Public holiday",
+  "2025-01-27", "Public holiday",
+  "2025-04-18", "Public holiday",
+  "2025-04-21", "Public holiday",
+  "2025-04-25", "Public holiday",
+  "2025-06-09", "Public holiday",
+  "2025-10-06", "Public holiday",
+  "2025-12-25", "Public holiday",
+  "2025-12-26", "Public holiday",
+  
+  "2026-01-01", "Public holiday",
+  "2026-01-26", "Public holiday",
+  "2026-12-26", "Public holiday",
+  "2026-04-03", "Public holiday",
+  "2026-04-06", "Public holiday",
+  "2026-04-25", "Public holiday",
+  "2026-06-08", "Public holiday",
+  "2026-10-05", "Public holiday",
+  "2026-12-25", "Public holiday",
+  "2026-12-28", "Public holiday",
   ) %>%
   mutate(Date = lubridate::ymd(Date))
 
@@ -364,9 +384,27 @@ HistoricalReferenceDateDataSH <- tibble::tibble(
                   by = "days"),
     ## Summer holidays (eastern)
     seq.Date(from = lubridate::ymd("2024-12-23"),
-                  to = lubridate::ymd("2025-01-30"),
-                  by = "days")
-    ),
+             to = lubridate::ymd("2025-01-30"),
+             by = "days"),
+    ## Autumn holidays 2025
+    seq.Date(from = lubridate::ymd("2025-04-14"),
+             to = lubridate::ymd("2025-04-24"),
+             by = "days"),
+    ## Winter holidays
+    seq.Date(from = lubridate::ymd("2025-07-07"),
+             to = lubridate::ymd("2025-07-18"),
+             by = "days"),
+    ## Spring holidays
+    seq.Date(from = lubridate::ymd("2025-09-29"),
+             to = lubridate::ymd("2025-10-10"),
+             by = "days"),
+    ## Summer holidays (eastern)
+    seq.Date(from = lubridate::ymd("2025-12-22"),
+             to = lubridate::ymd("2026-01-26"),
+             by = "days")
+  ),
+    
+  
   DateTypeSH = "School holiday"
 )
 
