@@ -27,7 +27,7 @@ fGetSettings <- function() {
   
   
   # App details
-  Settings$VersionN <- "0.1.1"
+  Settings$VersionN <- "0.1.2"
 
   
   

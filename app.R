@@ -15,7 +15,7 @@ ui <- shinyMobile::f7Page(
   title = "Tallawong Parking Monitor",
   
   options = list(dark = FALSE,
-                 theme = "aurora",
+                 # theme = "aurora",
                  color = Settings$ColourTheme),
   
   
@@ -42,7 +42,6 @@ ui <- shinyMobile::f7Page(
       
       id = "UserPanel",
       side = "left",
-      theme = "light",
       effect = "reveal",
       title = "Help",
       
@@ -125,10 +124,6 @@ ui <- shinyMobile::f7Page(
         # Historical view
         shiny::tagList(
           
-          shinyMobile::f7Padding(shiny::p(shiny::HTML("<b>Due to the Metro extension, ",
-                                                      "historical estimates may not ",
-                                                      "be accurate for several months.</b>")), 
-                                 side = "horizontal"),
           ## P1
           shinyMobile::f7Padding(shinyMobile::f7Card(
             
