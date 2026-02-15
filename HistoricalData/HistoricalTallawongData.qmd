@@ -224,6 +224,24 @@ fBootCINoOutput <- function (boot.out, conf = 0.95, type = "all",
   class(output) <- "bootci"
   output
 }
+
+## Calculate HPD
+fCalculateHPD <- function(x, width = 0.9) {
+  
+  if (length(x) <= 2)
+    return(list(list(LowerCI = median(x),UpperCI = median(x))))
+  
+  Output <- coda::HPDinterval(coda::mcmc(x), prob = width) %>%
+    as.numeric()
+  
+  ReturnList <- list(list(
+    LowerCI = Output[1],
+    UpperCI = Output[2]
+  ))
+  
+  return(ReturnList)
+  
+}
 ```
 
 ```{r LoadSettings}
@@ -234,6 +252,7 @@ Settings$StartDate <- lubridate::dmy("04092023")  # Individual 3 carparks only a
 Settings$EndDate <- lubridate::dmy("16012026")
 Settings$HistoricalStartDate <- lubridate::dmy("20112022")  # Individual 3 carparks only available from 04 Sept 2023
 Settings$HistoricalEndDate <- lubridate::dmy("04092023")
+Settings$SydenhamMetroOpen <- lubridate::dmy("19082024")
 ```
 
 ## Call historical data
@@ -432,7 +451,7 @@ HistoricalReferenceDateData <- tibble::tibble(
 # Transform data
 
 ```{r LoadStoredData}
-FinalHistoricalData <- readRDS(file = "TallawongData 2024-08-06.rds")
+FinalHistoricalData <- readRDS(file = "TallawongData 2026-01-18.rds")
 ```
 
 Total data points: `r scales::comma(nrow(FinalHistoricalData), accuracy = 1)`.
@@ -511,10 +530,11 @@ FinalHistoricalDataInterpolated <- FinalHistoricalDataWithAllMinutes %>%
   dplyr::ungroup()
 ```
 
-Add weights. As the area around Tallawong station is undergoing massive development, old data may not be as reliable as more recent data. Without spending a lot of time trying to quantify the change in development and impacts over time (as this project is meant to be done quickly for my personal benefit and not to be as accurate as possible), I have only applied a minor penalisation to historic data (earliest data is worth 80% of the most up to date data) as it is still informative.
+Add weights. As the area around Tallawong station is undergoing massive development, old data may not be as reliable as more recent data. The opening of the Sydenham extension increased patronage anecdotally so data will be limited to the Sydenham extension period. ~~Without spending a lot of time trying to quantify the change in development and impacts over time (as this project is meant to be done quickly for my personal benefit and not to be as accurate as possible), I have only applied a minor penalisation to historic data from this point (earliest data is worth 80% of the most up to date data) as it is still informative.~~ **Update: unweighted data will be used as the Sydenham metro opening was recent and there is insufficient data to warrant weighting out older data at the moment.**
 
 ```{r}
-StartDateInteger <- paste(Settings$HistoricalStartDate, "00:00:00") %>%
+#| eval: false
+StartDateInteger <- paste(Settings$SydenhamMetroOpen, "00:00:00") %>%
   as.character() %>%
   lubridate::ymd_hms() %>%
   as.integer()
@@ -531,18 +551,30 @@ FinalHistoricalDataWeighted <- FinalHistoricalDataInterpolated %>%
   dplyr::select(-DateAsInteger)
 ```
 
-Create final summary dataframe for plotting. As much of the time points have very little numbers, the bootstrap percentile interval has been used in place of the 95% confidence interval. Ideally when more data is collected, the adjusted bootstrap percentile interval will be used instead. And then when models are built, the prediction interval.
+```{r}
+#| label: temporary unweighted section
+StartDateSydenham <- paste(Settings$SydenhamMetroOpen, "00:00:00") %>%
+  as.character() %>%
+  lubridate::ymd_hms()
+
+
+FinalHistoricalDataWeighted <- FinalHistoricalDataInterpolated %>%
+  dplyr::filter(MinuteDate >= StartDateSydenham)
+```
+
+Create final summary dataframe for plotting, with the 90th Highest Percentile Density (HPD) for each datapoint.
 
 ```{r}
 ParkAvailabilityByDayTime <- FinalHistoricalDataWeighted %>%
   dplyr::group_by(FinalDayClassification, FacilityName, FacilityNameShort, Day, Time) %>%
   dplyr::summarise(N = dplyr::n(),
-                   MedianBootResultsAvailable = fBootstrapMedian(Available, wt = Weight),
+                   BootMedian = median(Available),
+                   HPDResultsAvailable = fCalculateHPD(Available),
                    Min = min(Available, na.rm = TRUE),
                    Max = max(Available, na.rm = TRUE),
                    .groups = "drop") %>%
   suppressWarnings() %>%
-  tidyr::unnest_wider(col = MedianBootResultsAvailable) %>%
+  tidyr::unnest_wider(col = HPDResultsAvailable) %>%
   dplyr::arrange(FinalDayClassification, FacilityNameShort, Day, Time)
 ```
 
